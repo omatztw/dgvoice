@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"sync"
 
 	"github.com/bwmarrin/discordgo"
 	"layeh.com/gopus"
@@ -35,9 +34,8 @@ const (
 )
 
 var (
-	speakers    map[uint32]*gopus.Decoder
-	opusEncoder *gopus.Encoder
-	mu          sync.Mutex
+	speakers map[uint32]*gopus.Decoder
+	//mu          sync.Mutex            // commented because it's not using currently
 )
 
 // OnError gets called by dgvoice when an error is encountered.
@@ -46,9 +44,9 @@ var OnError = func(str string, err error) {
 	prefix := "dgVoice: " + str
 
 	if err != nil {
-		os.Stderr.WriteString(prefix + ": " + err.Error())
+		os.Stderr.WriteString(prefix + ": " + err.Error() + "\n")
 	} else {
-		os.Stderr.WriteString(prefix)
+		os.Stderr.WriteString(prefix + "\n")
 	}
 }
 
@@ -61,7 +59,10 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 
 	var err error
 
-	opusEncoder, err = gopus.NewEncoder(frameRate, channels, gopus.Audio)
+	// opusEncoder must be the local variable
+	// so that a bot can stream different files on different channel on each multiple guild
+	// otherwise multiple audio stream overlaps and stutters, not listening clearly.
+	opusEncoder, err := gopus.NewEncoder(frameRate, channels, gopus.Audio)
 
 	if err != nil {
 		OnError("NewEncoder Error", err)
@@ -73,7 +74,7 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 		// read pcm from chan, exit if channel is closed.
 		recv, ok := <-pcm
 		if !ok {
-			OnError("PCM Channel closed", nil)
+			//OnError("PCM Channel closed", nil) //annoying log output
 			return
 		}
 
